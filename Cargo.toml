@@ -1,0 +1,15 @@
+[package]
+name = "ms5611"
+version = "0.1.0"
+authors = ["Alexandre Burry"]
+description = "no_std driver for MS5611 barometer sensor"
+license = "MIT OR Apache-2.0"
+readme = "Readme.md"
+keywords = ["pressure", "sensor", "spi", "driver", "no-std"]
+
+[dependencies]
+embedded-hal = "0.2"
+
+[dev-dependencies]
+embedded-hal-mock = "0.5"
+linux-embedded-hal = "0.2.2"

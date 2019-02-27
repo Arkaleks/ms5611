@@ -1,16 +1,33 @@
+//! no_std driver for the MS5611 (barometric pressure sensor)
+//!
+//!
+//! # Usage
+//!
+//! Use embedded-hal implementation to get SPI, NCS, and delay, then create
+//! a ms5611 handle
+//!
+//! ```ignore
+//! // Create handle
+//! let ms5611 = Ms5611::new(spi, ncs, Delay)?;
+//! // Get a second order compensated pressure (and thermo) sample,
+//! let sample = ms5611.get_second_order_sample(Oversampling::OS_2048)?;
+//! println!("{:?}", sample);
+//! ```
+//! 
+//! # References
+//!
+//! - [Product specification][1]
+//!
+//! [1]: https://www.te.com/commerce/DocumentDelivery/DDEController?Action=showdoc&DocId=Data+Sheet%7FMS5611-01BA03%7FB3%7Fpdf%7FEnglish%7FENG_DS_MS5611-01BA03_B3.pdf%7FCAT-BLPS0036
+
 #![cfg_attr(not(test), no_std)]
 extern crate embedded_hal as hal;
 
 use hal::blocking::delay::DelayMs;
 use hal::blocking::spi::{Transfer, Write};
 use hal::digital::OutputPin;
-use hal::spi::{Mode, Phase, Polarity};
 
-pub const MODE: Mode = Mode {
-    phase: Phase::CaptureOnFirstTransition,
-    polarity: Polarity::IdleLow,
-};
-
+/// MS5611 driver
 pub struct Ms5611<SPI, NCS, D> {
     spi: SPI,
     ncs: NCS,
@@ -24,6 +41,7 @@ where
     NCS: OutputPin,
     D: DelayMs<u8>,
 {
+    /// Creates a new MS5611 driver from a SPI peripheral and a NCS pin
     pub fn new(spi: SPI, ncs: NCS, delay: D) -> Result<Ms5611<SPI, NCS, D>, E> {
         let mut ms5611 = Ms5611 {
             spi,
@@ -39,6 +57,7 @@ where
         Ok(ms5611)
     }
 
+    /// Reads and returns Pressure and Thermometer measurement
     pub fn get_compensated_sample(&mut self, osr: Oversampling) -> Result<Sample, E> {
         let raw_sample = self.read_raw_sample(osr)?;
 
@@ -62,6 +81,8 @@ where
         Ok(sample)
     }
 
+    /// Reads and returns a second order compensated Pressure and Thermometer
+    /// measurement as defined in datasheet.
     pub fn get_second_order_sample(&mut self, osr: Oversampling) -> Result<Sample, E> {
         let raw_sample = self.read_raw_sample(osr)?;
 
@@ -187,6 +208,7 @@ where
     }
 }
 
+/// Pressure and Thermometer measurement
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Sample {
     pub pressure: i32,
@@ -213,6 +235,9 @@ impl Command {
     }
 }
 
+
+/// Oversampling rates as defined in datasheet
+/// defines for how long reading a sample will block
 #[allow(non_camel_case_types)]
 #[derive(Clone, Copy)]
 pub enum Oversampling {
@@ -245,13 +270,14 @@ impl Oversampling {
     }
 }
 
+/// Default factory coefficients
 #[derive(Debug, Default)]
-pub struct Coefficients {
+struct Coefficients {
     data: [u16; 8],
 }
 
 #[allow(non_camel_case_types)]
-pub enum CoefficientsAddr {
+enum CoefficientsAddr {
     MANUFACTURER = 0x0,
     COEFF_1 = 0x2,
     COEFF_2 = 0x4,

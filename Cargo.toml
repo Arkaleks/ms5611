@@ -1,11 +1,12 @@
 [package]
-name = "ms5611"
+name = "ms5611-spi"
 version = "0.1.0"
 authors = ["Alexandre Burry"]
 description = "no_std driver for MS5611 barometer sensor"
 license = "MIT OR Apache-2.0"
 readme = "Readme.md"
-keywords = ["pressure", "sensor", "spi", "driver", "no-std"]
+keywords = ["pressure", "sensor", "spi", "no-std", "hal"]
+repository = "https://github.com/Arkaleks/ms5611"
 
 [dependencies]
 embedded-hal = "0.2"

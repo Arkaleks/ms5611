@@ -13,7 +13,7 @@
 //! let sample = ms5611.get_second_order_sample(Oversampling::OS_2048)?;
 //! println!("{:?}", sample);
 //! ```
-//! 
+//!
 //! # References
 //!
 //! - [Product specification][1]
@@ -300,14 +300,22 @@ impl Coefficients {
     pub fn check_crc(&self) -> bool {
         let mut crc: u16 = 0;
         let data_crc = self.get_crc() as u16;
-        for item in self.data.iter() {
-            crc ^= (item >> 8) & 0xFFu16;
-            crc = Self::crc_round(crc);
-            crc ^= item & 0xFF;
-            crc = Self::crc_round(crc);
+        for item in self.data[..self.data.len() - 1].iter() {
+            crc = Self::crc_coefficient(crc, item);
         }
+        crc = Self::crc_coefficient(crc, &(self.get_data(CoefficientsAddr::CRC) & 0xFF00));
+
         crc = (crc >> 12) & 0xF;
         (crc == data_crc)
+    }
+
+    fn crc_coefficient(crc: u16, coefficient: &u16) -> u16 {
+        let mut crc = crc;
+        crc ^= (coefficient >> 8) & 0xFFu16;
+        crc = Self::crc_round(crc);
+        crc ^= coefficient & 0xFF;
+        crc = Self::crc_round(crc);
+        (crc)
     }
 
     fn crc_round(crc: u16) -> u16 {
@@ -359,7 +367,7 @@ mod tests {
     #[test]
     fn check_crc() {
         let mut data = [
-            0x3132, 0x3334, 0x3536, 0x3738, 0x3940, 0x4142, 0x4344, 0x450b,
+            0x0024, 0xB3D8, 0xBD83, 0x6E00, 0x628A, 0x8063, 0x6ADB, 0x947B,
         ];
         let coeffs = Coefficients { data };
         assert_eq!(coeffs.check_crc(), true);

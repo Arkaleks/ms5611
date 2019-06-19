@@ -1,7 +1,7 @@
 //! Raspberry Pi demo
 
 extern crate linux_embedded_hal as hal;
-extern crate ms5611;
+extern crate ms5611_spi as ms5611;
 
 use hal::spidev::{self, SpidevOptions};
 use hal::sysfs_gpio::Direction;

@@ -54,17 +54,33 @@ where
         Ok(ms5611)
     }
 
+    /// Return the temperature compensation variables `dt`, `sens` and
+    /// `off` from the raw sample temperature and the coefficients.
+    fn get_temperature_compensation(&self, raw_sample: Sample) -> (i64, i64, i64) {
+        let dt: i64 = ((raw_sample.temperature as i32)
+            - ((self.coeffs.get_data(CoefficientsAddr::COEFF_5) as i32) << 8))
+            as i64;
+
+        #[cfg(any(feature = "ms5611"))]
+        let (offset_sh, sens_sh) = ((16, 7), (15, 8));
+        #[cfg(any(feature = "ms5607"))]
+        let (offset_sh, sens_sh) = ((17, 6), (16, 7));
+
+        let off = ((self.coeffs.get_data(CoefficientsAddr::COEFF_2) as i64) << offset_sh.0)
+            + (((self.coeffs.get_data(CoefficientsAddr::COEFF_4) as i64) * dt) >> offset_sh.1);
+
+        let sens = ((self.coeffs.get_data(CoefficientsAddr::COEFF_1) as i64) << sens_sh.0)
+            + (((self.coeffs.get_data(CoefficientsAddr::COEFF_3) as i64) * dt) >> sens_sh.1);
+
+        (dt, sens, off)
+    }
+
     /// Reads and returns Pressure and Thermometer measurement
     pub fn get_compensated_sample(&mut self, osr: Oversampling, delay_source: &mut impl DelayMs<u8>) -> Result<Sample, E> {
         let raw_sample = self.read_raw_sample(osr, delay_source)?;
 
-        let dt = (raw_sample.temperature as i32)
-            - ((self.coeffs.get_data(CoefficientsAddr::COEFF_5) as i32) << 8);
-        let off = ((self.coeffs.get_data(CoefficientsAddr::COEFF_2) as i64) << 16)
-            + (((self.coeffs.get_data(CoefficientsAddr::COEFF_4) as i64) * (dt as i64)) >> 7);
-
-        let sens = ((self.coeffs.get_data(CoefficientsAddr::COEFF_1) as i64) << 15)
-            + (((self.coeffs.get_data(CoefficientsAddr::COEFF_3) as i64) * (dt as i64)) >> 8);
+        // Get temperature compensation constants
+        let (dt, sens, off) = self.get_temperature_compensation(raw_sample);
 
         let temperature = (2000i64
             + ((dt as i64) * (self.coeffs.get_data(CoefficientsAddr::COEFF_6) as i64) >> 23))
@@ -83,13 +99,8 @@ where
     pub fn get_second_order_sample(&mut self, osr: Oversampling, delay_source: &mut impl DelayMs<u8>) -> Result<Sample, E> {
         let raw_sample = self.read_raw_sample(osr, delay_source)?;
 
-        let dt = (raw_sample.temperature as i32)
-            - ((self.coeffs.get_data(CoefficientsAddr::COEFF_5) as i32) << 8);
-        let mut off = ((self.coeffs.get_data(CoefficientsAddr::COEFF_2) as i64) << 16)
-            + (((self.coeffs.get_data(CoefficientsAddr::COEFF_4) as i64) * (dt as i64)) >> 7);
-
-        let mut sens = ((self.coeffs.get_data(CoefficientsAddr::COEFF_1) as i64) << 15)
-            + (((self.coeffs.get_data(CoefficientsAddr::COEFF_3) as i64) * (dt as i64)) >> 8);
+        // Get temperature compensation constants
+        let (dt, mut sens, mut off) = self.get_temperature_compensation(raw_sample);
 
         let mut temperature = (2000i64
             + ((dt as i64) * (self.coeffs.get_data(CoefficientsAddr::COEFF_6) as i64) >> 23))

@@ -15,4 +15,7 @@ embedded-hal = "0.2.3"
 embedded-hal-mock = "0.5"
 linux-embedded-hal = "0.2.2"
 
-
+[features]
+default = ["ms5611"]
+ms5611 = []
+ms5607 = []

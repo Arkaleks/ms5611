@@ -25,32 +25,29 @@ extern crate embedded_hal as hal;
 
 use hal::blocking::delay::DelayMs;
 use hal::blocking::spi::{Transfer, Write};
-use hal::digital::OutputPin;
+use hal::digital::v2::OutputPin;
 
 /// MS5611 driver
-pub struct Ms5611<SPI, NCS, D> {
+pub struct Ms5611<SPI, NCS> {
     spi: SPI,
     ncs: NCS,
-    delay: D,
     coeffs: Coefficients,
 }
 
-impl<SPI, NCS, D, E> Ms5611<SPI, NCS, D>
+impl<SPI, NCS, E> Ms5611<SPI, NCS>
 where
     SPI: Transfer<u8, Error = E> + Write<u8, Error = E>,
     NCS: OutputPin,
-    D: DelayMs<u8>,
 {
     /// Creates a new MS5611 driver from a SPI peripheral and a NCS pin
-    pub fn new(spi: SPI, ncs: NCS, delay: D) -> Result<Ms5611<SPI, NCS, D>, E> {
+    pub fn new(spi: SPI, ncs: NCS, delay: &mut impl DelayMs<u8>) -> Result<Ms5611<SPI, NCS>, E> {
         let mut ms5611 = Ms5611 {
             spi,
             ncs,
-            delay,
             coeffs: Coefficients::default(),
         };
 
-        ms5611.reset()?;
+        ms5611.reset(delay)?;
         ms5611.coeffs = ms5611.read_coefficients()?;
         assert!(ms5611.coeffs.check_crc());
 
@@ -58,8 +55,8 @@ where
     }
 
     /// Reads and returns Pressure and Thermometer measurement
-    pub fn get_compensated_sample(&mut self, osr: Oversampling) -> Result<Sample, E> {
-        let raw_sample = self.read_raw_sample(osr)?;
+    pub fn get_compensated_sample(&mut self, osr: Oversampling, delay_source: &mut impl DelayMs<u8>) -> Result<Sample, E> {
+        let raw_sample = self.read_raw_sample(osr, delay_source)?;
 
         let dt = (raw_sample.temperature as i32)
             - ((self.coeffs.get_data(CoefficientsAddr::COEFF_5) as i32) << 8);
@@ -83,8 +80,8 @@ where
 
     /// Reads and returns a second order compensated Pressure and Thermometer
     /// measurement as defined in datasheet.
-    pub fn get_second_order_sample(&mut self, osr: Oversampling) -> Result<Sample, E> {
-        let raw_sample = self.read_raw_sample(osr)?;
+    pub fn get_second_order_sample(&mut self, osr: Oversampling, delay_source: &mut impl DelayMs<u8>) -> Result<Sample, E> {
+        let raw_sample = self.read_raw_sample(osr, delay_source)?;
 
         let dt = (raw_sample.temperature as i32)
             - ((self.coeffs.get_data(CoefficientsAddr::COEFF_5) as i32) << 8);
@@ -129,18 +126,18 @@ where
     }
 
     fn send(&mut self, addr: u8) -> Result<(), E> {
-        self.ncs.set_low();
+        let _ = self.ncs.set_low();
         self.spi.write(&[addr])?;
-        self.ncs.set_high();
+        let _ = self.ncs.set_high();
         Ok(())
     }
 
     fn read_raw(&mut self, addr: u8) -> Result<u32, E> {
         let mut buffer = [0; 4];
         buffer[0] = addr;
-        self.ncs.set_low();
+        let _ = self.ncs.set_low();
         self.spi.transfer(&mut buffer)?;
-        self.ncs.set_high();
+        let _ = self.ncs.set_high();
 
         let r = ((buffer[1] as u32) << 16) | ((buffer[2] as u32) << 8) | (buffer[3] as u32);
 
@@ -150,24 +147,24 @@ where
     fn read_raw_u16(&mut self, addr: u8) -> Result<u16, E> {
         let mut buffer = [0; 3];
         buffer[0] = addr;
-        self.ncs.set_low();
+        let _ = self.ncs.set_low();
         self.spi.transfer(&mut buffer)?;
-        self.ncs.set_high();
+        let _ = self.ncs.set_high();
 
         let r = ((buffer[1] as u16) << 8) | (buffer[2] as u16);
 
         Ok(r)
     }
 
-    fn read_raw_sample(&mut self, osr: Oversampling) -> Result<Sample, E> {
+    fn read_raw_sample(&mut self, osr: Oversampling, delay_source: &mut impl  DelayMs<u8>) -> Result<Sample, E> {
         // Start convertion of D1 (pressure)
         self.send(Command::CONV_D1.address() + osr.offset())?;
-        self.delay.delay_ms(osr.delay());
+        delay_source.delay_ms(osr.delay());
         let raw_pressure = self.read_raw(Command::ADC_READ.address())?;
 
         // Start convertion of D2 (temperature)
         self.send(Command::CONV_D2.address() + osr.offset())?;
-        self.delay.delay_ms(osr.delay());
+        delay_source.delay_ms(osr.delay());
         let raw_temperature = self.read_raw(Command::ADC_READ.address())?;
 
         let sample = Sample {
@@ -178,9 +175,9 @@ where
         Ok(sample)
     }
 
-    fn reset(&mut self) -> Result<(), E> {
+    fn reset(&mut self, delay_source: &mut impl DelayMs<u8>) -> Result<(), E> {
         self.send(Command::RESET.address())?;
-        self.delay.delay_ms(3);
+        delay_source.delay_ms(3);
         Ok(())
     }
 

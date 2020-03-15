@@ -9,8 +9,10 @@ keywords = ["pressure", "sensor", "spi", "no-std", "hal"]
 repository = "https://github.com/Arkaleks/ms5611"
 
 [dependencies]
-embedded-hal = "0.2"
+embedded-hal = "0.2.3"
 
 [dev-dependencies]
 embedded-hal-mock = "0.5"
 linux-embedded-hal = "0.2.2"
+
+

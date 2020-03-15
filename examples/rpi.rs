@@ -16,15 +16,16 @@ fn main() {
         .build();
     spi.configure(&options).unwrap();
 
+    let mut delay_source = Delay;
     let ncs = Pin::new(25);
     ncs.export().unwrap();
     while !ncs.is_exported() {}
     ncs.set_direction(Direction::Out).unwrap();
     ncs.set_value(1).unwrap();
 
-    let mut ms5611 = Ms5611::new(spi, ncs, Delay).unwrap();
+    let mut ms5611 = Ms5611::new(spi, ncs, &mut delay_source).unwrap();
     let sample = ms5611
-        .get_second_order_sample(Oversampling::OS_2048)
+        .get_second_order_sample(Oversampling::OS_2048, &mut delay_source)
         .unwrap();
     println!("{:?}", sample);
 }

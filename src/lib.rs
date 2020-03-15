@@ -337,9 +337,11 @@ mod tests {
     use super::*;
 
     struct Pin;
-    impl hal::digital::OutputPin for Pin {
-        fn set_low(&mut self) {}
-        fn set_high(&mut self) {}
+
+    impl hal::digital::v2::OutputPin for Pin {
+	type Error = u32;
+        fn set_low(&mut self) -> Result<(), Self::Error> { Ok(()) }
+        fn set_high(&mut self) -> Result<(), Self::Error> { Ok(()) }
     }
 
     #[test]
@@ -399,13 +401,13 @@ mod tests {
 
         let spi = SpiMock::new(&expectations);
         let pin = Pin;
-        let delay = MockNoop::new();
-        let mut ms5611 = Ms5611::new(spi, pin, delay).unwrap();
+        let mut delay_source = MockNoop::new();
+        let mut ms5611 = Ms5611::new(spi, pin, &mut delay_source).unwrap();
         let sample1 = ms5611
-            .get_compensated_sample(Oversampling::OS_2048)
+            .get_compensated_sample(Oversampling::OS_2048, &mut delay_source)
             .unwrap();
         let sample2 = ms5611
-            .get_second_order_sample(Oversampling::OS_2048)
+            .get_second_order_sample(Oversampling::OS_2048, &mut delay_source)
             .unwrap();
 
         assert_eq!(

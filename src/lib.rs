@@ -23,6 +23,10 @@
 #![cfg_attr(not(test), no_std)]
 extern crate embedded_hal as hal;
 
+// Feature gate for MS5607
+#[cfg(all(feature = "ms5611", feature = "ms5607"))]
+compile_error!("Cannot specify both ms5611 and ms5607 flags. Try setting default-features = false");
+
 use hal::blocking::delay::DelayMs;
 use hal::blocking::spi::{Transfer, Write};
 use hal::digital::v2::OutputPin;
@@ -388,8 +392,9 @@ mod tests {
     }
 
     #[test]
-    fn read_compensated_samples() {
-        /* The following values are taken as example in datasheet */
+    #[cfg(feature = "ms5611")]
+    fn read_compensated_samples_ms5611() {
+        /* The following values are taken from the example in the datasheet */
         let expectations = [
             SpiTransaction::write(vec![0x1E]),
             SpiTransaction::transfer(vec![0xA0, 0, 0], vec![0, 0x00, 0x00]),
@@ -425,6 +430,51 @@ mod tests {
             Sample {
                 pressure: 100009,
                 temperature: 2007
+            },
+            sample1
+        );
+        assert_eq!(sample1, sample2);
+    }
+
+    #[test]
+    #[cfg(feature = "ms5607")]
+    fn read_compensated_samples_ms5607() {
+        /* The following values are taken from the example in the datasheet */
+        let expectations = [
+            SpiTransaction::write(vec![0x1E]),
+            SpiTransaction::transfer(vec![0xA0, 0, 0], vec![0, 0x00, 0x00]),
+            SpiTransaction::transfer(vec![0xA2, 0, 0], vec![0, 0xB5, 0x24]), // 46372
+            SpiTransaction::transfer(vec![0xA4, 0, 0], vec![0, 0xAB, 0xCD]), // 43981
+            SpiTransaction::transfer(vec![0xA6, 0, 0], vec![0, 0x71, 0x83]), // 29059
+            SpiTransaction::transfer(vec![0xA8, 0, 0], vec![0, 0x6C, 0xC2]), // 27842
+            SpiTransaction::transfer(vec![0xAA, 0, 0], vec![0, 0x7B, 0x41]), // 31553
+            SpiTransaction::transfer(vec![0xAC, 0, 0], vec![0, 0x6E, 0x05]), // 28165
+            SpiTransaction::transfer(vec![0xAE, 0, 0], vec![0, 0x00, 0x08]),
+            SpiTransaction::write(vec![0x46]), // Convert D1 OSR=2048
+            SpiTransaction::transfer(vec![0, 0, 0, 0], vec![0, 0x62, 0xA7, 0xA4]), // 6465444
+            SpiTransaction::write(vec![0x56]), // Convert D2 OSR=2048
+            SpiTransaction::transfer(vec![0, 0, 0, 0], vec![0, 0x7B, 0x41, 0x44]), // 8077636
+            SpiTransaction::write(vec![0x46]), // Convert D1 OSR=2048
+            SpiTransaction::transfer(vec![0, 0, 0, 0], vec![0, 0x62, 0xA7, 0xA4]), // 6465444
+            SpiTransaction::write(vec![0x56]), // Convert D2 OSR=2048
+            SpiTransaction::transfer(vec![0, 0, 0, 0], vec![0, 0x7B, 0x41, 0x44]), // 8077636
+        ];
+
+        let spi = SpiMock::new(&expectations);
+        let pin = Pin;
+        let mut delay_source = MockNoop::new();
+        let mut ms5611 = Ms5611::new(spi, pin, &mut delay_source).unwrap();
+        let sample1 = ms5611
+            .get_compensated_sample(Oversampling::OS_2048, &mut delay_source)
+            .unwrap();
+        let sample2 = ms5611
+            .get_second_order_sample(Oversampling::OS_2048, &mut delay_source)
+            .unwrap();
+
+        assert_eq!(
+            Sample {
+                pressure: 110002,
+                temperature: 2000
             },
             sample1
         );
